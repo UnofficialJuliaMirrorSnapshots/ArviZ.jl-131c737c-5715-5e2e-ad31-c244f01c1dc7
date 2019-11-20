@@ -1,0 +1,54 @@
+## Documentation: http://docs.travis-ci.com/user/languages/julia/
+language: julia
+dist: xenial
+os:
+  - linux
+julia:
+  - 1.1
+  - 1.2
+  - 1.3
+  - nightly
+notifications:
+  email: false
+branches:
+  only:
+    - master
+    - /^v\d+\.\d+(\.\d+)?(-\S*)?$/ # build tagged releases
+git:
+  depth: 99999999
+env:
+  global:
+    - PYTHON="conda" # Install dependencies in conda env
+    - CMDSTAN_VERSION="2.21.0"
+    - CMDSTAN_CACHE="$HOME/.cmdstan/"
+    - JULIA_CMDSTAN_HOME="$CMDSTAN_CACHE/cmdstan-$CMDSTAN_VERSION/"
+
+matrix:
+ allow_failures:
+ - julia: 1.3
+ - julia: nightly
+
+cache:
+  directories:
+  - $CMDSTAN_CACHE
+
+# Adapted from CmdStan.jl
+before_install:
+  - if [ ! -d $JULIA_CMDSTAN_HOME ]; then
+    wget -P $CMDSTAN_CACHE https://github.com/stan-dev/cmdstan/releases/download/v$CMDSTAN_VERSION/cmdstan-$CMDSTAN_VERSION.tar.gz;
+    tar -xzpf $CMDSTAN_CACHE/cmdstan-$CMDSTAN_VERSION.tar.gz -C $CMDSTAN_CACHE;
+    make -C $JULIA_CMDSTAN_HOME build;
+    fi
+
+jobs:
+  include:
+    - stage: Documentation
+      julia: 1.2
+      os: linux
+      script:
+        - julia --color=yes --project=docs/ docs/make.jl
+      after_success: skip
+
+after_success:
+  - julia --project=test/coverage -e 'using Pkg; Pkg.instantiate()'
+  - julia --project=test/coverage test/coverage/coverage.jl
